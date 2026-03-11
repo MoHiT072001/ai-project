@@ -26,16 +26,18 @@ def _collect_providers(doc: dict[str, Any]) -> list[str]:
 def _normalize_resource(resource_type: str, name: str, body: dict[str, Any]) -> dict[str, Any]:
     deps = []
     explicit = body.get("depends_on")
+
     if explicit is not None:
         for d in _as_list(explicit):
             if isinstance(d, str):
                 deps.append(d)
 
-    # Best-effort implicit dependencies via interpolation tokens: aws_x.y / module.x / data.x.y
     text = str(body)
-    implicit = set(re.findall(r"\b(?:data\.)?([a-zA-Z0-9_]+)\.([a-zA-Z0-9_-]+)\b", text))
+    implicit = set(
+        re.findall(r"\b(?:data\.)?([a-zA-Z0-9_]+)\.([a-zA-Z0-9_-]+)\b", text)
+    )
+
     for rtype, rname in implicit:
-        # skip self-ish or common words
         if rtype in {"var", "local", "path", "terraform", "each", "count"}:
             continue
         deps.append(f"{rtype}.{rname}")
@@ -52,10 +54,12 @@ def _normalize_resource(resource_type: str, name: str, body: dict[str, Any]) -> 
         it = body.get("instance_type")
         if isinstance(it, str):
             r["instance_type"] = it
+
     if resource_type in {"aws_s3_bucket", "aws_s3_bucket_public_access_block"}:
         bn = body.get("bucket")
         if isinstance(bn, str):
             r["bucket"] = bn
+
     return r
 
 
@@ -63,23 +67,34 @@ def parse_terraform(workdir: Path) -> dict[str, Any]:
     resources: list[dict[str, Any]] = []
     providers: set[str] = set()
     raw_docs: list[dict[str, Any]] = []
+    parse_errors: list[str] = []
 
     for tf in sorted(workdir.glob("*.tf")):
-        with tf.open("r", encoding="utf-8") as f:
-            doc = hcl2.load(f)
+        try:
+            with tf.open("r", encoding="utf-8") as f:
+                doc = hcl2.load(f)
+        except Exception as e:
+            parse_errors.append(f"{tf.name}: {str(e)}")
+            continue
+
         raw_docs.append(doc)
+
         for p in _collect_providers(doc):
             providers.add(p)
 
         for block in _as_list(doc.get("resource")):
             if not isinstance(block, dict):
                 continue
+
             for resource_type, instances in block.items():
                 if not isinstance(instances, dict):
                     continue
+
                 for name, body in instances.items():
                     if isinstance(body, dict):
-                        resources.append(_normalize_resource(resource_type, name, body))
+                        resources.append(
+                            _normalize_resource(resource_type, name, body)
+                        )
 
     categorized = {
         "networking": [],
@@ -91,14 +106,47 @@ def parse_terraform(workdir: Path) -> dict[str, Any]:
 
     for r in resources:
         rt = r["resource_type"]
-        if rt.startswith(("aws_vpc", "aws_subnet", "aws_route", "aws_internet_gateway", "aws_nat_gateway", "aws_security_group", "aws_network_acl")):
+
+        if rt.startswith(
+            (
+                "aws_vpc",
+                "aws_subnet",
+                "aws_route",
+                "aws_internet_gateway",
+                "aws_nat_gateway",
+                "aws_security_group",
+                "aws_network_acl",
+            )
+        ):
             categorized["networking"].append(r)
+
         elif rt.startswith(("aws_iam_",)):
             categorized["iam"].append(r)
-        elif rt.startswith(("aws_instance", "aws_autoscaling_", "aws_launch_template", "aws_lb", "aws_ecs_", "aws_eks_")):
+
+        elif rt.startswith(
+            (
+                "aws_instance",
+                "aws_autoscaling_",
+                "aws_launch_template",
+                "aws_lb",
+                "aws_ecs_",
+                "aws_eks_",
+            )
+        ):
             categorized["compute"].append(r)
-        elif rt.startswith(("aws_s3_", "aws_ebs_", "aws_db_", "aws_rds_", "aws_dynamodb_", "aws_elasticache_")):
+
+        elif rt.startswith(
+            (
+                "aws_s3_",
+                "aws_ebs_",
+                "aws_db_",
+                "aws_rds_",
+                "aws_dynamodb_",
+                "aws_elasticache_",
+            )
+        ):
             categorized["storage"].append(r)
+
         else:
             categorized["other"].append(r)
 
@@ -107,5 +155,5 @@ def parse_terraform(workdir: Path) -> dict[str, Any]:
         "resources": resources,
         "categorized_resources": categorized,
         "raw": raw_docs,
+        "parse_errors": parse_errors,
     }
-

@@ -39,6 +39,12 @@ python -m venv .venv
 pip install -r requirements.txt
 uvicorn api.main:app --reload --port 8000
 ```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+export GROQ_API_KEY="sk_your_real_groq_key_here"
+uvicorn api.main:app --reload --port 8000
+
 
 API:
 

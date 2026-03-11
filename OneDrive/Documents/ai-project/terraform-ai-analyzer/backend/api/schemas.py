@@ -34,3 +34,18 @@ class NormalizedIssue(BaseModel):
     description: str
     recommendation: str
 
+
+class UpgradeRequest(BaseModel):
+    terraform_code: str = Field(..., min_length=1)
+
+
+class UpgradeSuggestion(BaseModel):
+    title: str
+    description: str
+    recommendation: str
+
+
+class UpgradeResponse(BaseModel):
+    upgraded_code: str
+    suggestions: list[UpgradeSuggestion]
+

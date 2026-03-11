@@ -55,6 +55,17 @@ export type ScanResult = {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
+export type UpgradeSuggestion = {
+  title: string;
+  description: string;
+  recommendation: string;
+};
+
+export type UpgradeResult = {
+  upgraded_code: string;
+  suggestions: UpgradeSuggestion[];
+};
+
 export async function runScan(terraform_code: string): Promise<{ scan_id: string }> {
   const r = await fetch(`${API_BASE}/scan`, {
     method: "POST",
@@ -73,6 +84,19 @@ export async function getResults(scanId: string): Promise<ScanResult> {
   if (!r.ok) {
     const text = await r.text();
     throw new Error(text || `Results fetch failed: ${r.status}`);
+  }
+  return await r.json();
+}
+
+export async function aiUpgrade(terraform_code: string): Promise<UpgradeResult> {
+  const r = await fetch(`${API_BASE}/ai/upgrade`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ terraform_code })
+  });
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(text || `AI upgrade failed: ${r.status}`);
   }
   return await r.json();
 }

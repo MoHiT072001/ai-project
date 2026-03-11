@@ -36,6 +36,11 @@ def run_ai_reasoning(terraform_struct: dict[str, Any], graph_summary: dict[str, 
 
     model = os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile")
     base_url = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+    insecure_skip_verify = os.getenv("GROQ_INSECURE_SKIP_VERIFY", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
     system = (
         "You are an expert cloud security engineer and infrastructure architect. "
@@ -150,7 +155,7 @@ def run_ai_reasoning(terraform_struct: dict[str, Any], graph_summary: dict[str, 
     }
 
     try:
-        with httpx.Client(timeout=45) as client:
+        with httpx.Client(timeout=45, verify=not insecure_skip_verify) as client:
             r = client.post(
                 f"{base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},

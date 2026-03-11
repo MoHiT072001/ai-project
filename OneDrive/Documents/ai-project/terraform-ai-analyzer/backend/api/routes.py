@@ -7,9 +7,14 @@ from api.schemas import (
     ScanResponse,
     UploadRequest,
     UploadResponse,
+    UpgradeRequest,
+    UpgradeResponse,
 )
-from api.storage import load_result, load_upload, save_upload
+from api.storage import load_result, load_upload, new_id, save_upload, scan_workspace
+from graph_engine.builder import build_dependency_graph, graph_insights
+from parser.terraform_parser import parse_terraform
 from pipeline.run_scan import run_full_scan
+from ai_engine.upgrade import run_ai_upgrade
 
 router = APIRouter()
 
@@ -41,4 +46,30 @@ def results(scan_id: str):
     if data is None:
         raise HTTPException(status_code=404, detail="scan_id not found")
     return data
+
+
+@router.post("/ai/upgrade", response_model=UpgradeResponse)
+def ai_upgrade(req: UpgradeRequest) -> UpgradeResponse:
+    terraform_code = req.terraform_code
+    if not terraform_code or not terraform_code.strip():
+        raise HTTPException(status_code=400, detail="terraform_code is required")
+
+    # Reuse the isolated scan workspace pattern for safety.
+    upgrade_id = new_id("upgrade")
+    workdir = scan_workspace(upgrade_id)
+    (workdir / "main.tf").write_text(terraform_code, encoding="utf-8")
+
+    parsed = parse_terraform(workdir=workdir)
+    graph = build_dependency_graph(parsed_resources=parsed.get("resources", []))
+    graph_summary = graph_insights(graph)
+
+    ai = run_ai_upgrade(
+        terraform_code=terraform_code,
+        terraform_struct=parsed,
+        graph_summary=graph_summary,
+    )
+    return UpgradeResponse(
+        upgraded_code=ai.get("upgraded_code", terraform_code),
+        suggestions=ai.get("suggestions", []),
+    )
 

@@ -17,6 +17,31 @@ export type Issue = {
 export type ScanResult = {
   scan_id: string;
   generated_at?: string;
+  summary?: {
+    hard_issues?: number;
+    upgrades_found?: number;
+    confidence?: number; // 0–1
+  };
+  changes?: {
+    id: string;
+    title: string;
+    from: string;
+    to: string;
+    description: string;
+    severity: Issue["severity"];
+  }[];
+  migration_guide?: {
+    step: number;
+    title: string;
+    detail: string;
+    example_command?: string;
+  }[];
+  recommendations?: {
+    id: string;
+    title: string;
+    description: string;
+    recommendation: string;
+  }[];
   static_issues: Issue[];
   policy_violations: Issue[];
   ai_architecture_insights: Issue[];

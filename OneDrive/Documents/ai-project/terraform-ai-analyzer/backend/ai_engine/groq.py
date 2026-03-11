@@ -8,6 +8,10 @@ import httpx
 
 def _default_response(reason: str) -> dict[str, Any]:
     return {
+        "summary": {},
+        "changes": [],
+        "migration_guide": [],
+        "recommendations": [],
         "architecture": [],
         "attack_paths": [],
         "blast_radius": [],
@@ -36,11 +40,43 @@ def run_ai_reasoning(terraform_struct: dict[str, Any], graph_summary: dict[str, 
     system = (
         "You are an expert cloud security engineer and infrastructure architect. "
         "Analyze the provided Terraform resources and dependency graph summary. "
+        "You also act as an infrastructure upgrade assistant suggesting safe improvements. "
         "Return ONLY valid JSON matching the required schema. "
         "Be precise, avoid speculation, and prefer actionable recommendations."
     )
 
     schema = {
+        "summary": {
+            "hard_issues": "integer  # count of HIGH/CRITICAL issues you consider hard",
+            "upgrades_found": "integer  # how many concrete upgrades you propose",
+            "confidence": "number  # between 0 and 1, your confidence in the analysis",
+        },
+        "changes": [
+            {
+                "id": "string",
+                "title": "string  # short human label like 'S3 Bucket Missing Public Access Block'",
+                "from": "string  # what is wrong today, or current pattern",
+                "to": "string  # target pattern / code snippet to move toward",
+                "description": "string  # why this change matters",
+                "severity": "low|medium|high|critical",
+            }
+        ],
+        "migration_guide": [
+            {
+                "step": "integer  # 1-based index",
+                "title": "string  # step label like 'Backup Current State'",
+                "detail": "string  # short description of the step",
+                "example_command": "string  # CLI example if applicable (can be empty)",
+            }
+        ],
+        "recommendations": [
+            {
+                "id": "string",
+                "title": "string  # e.g. 'Missing Encryption on S3 Bucket'",
+                "description": "string  # what you observed",
+                "recommendation": "string  # concrete change to make in code/infra",
+            }
+        ],
         "architecture": [
             {
                 "id": "string",
@@ -96,6 +132,9 @@ def run_ai_reasoning(terraform_struct: dict[str, Any], graph_summary: dict[str, 
         "instructions": [
             "Populate arrays with issues you find; use stable ids (e.g., ai:arch:1).",
             "If nothing found in a category, return an empty array for that category.",
+            "Use the 'changes' list for concrete before/after upgrade suggestions.",
+            "Use 'migration_guide' for a short ordered guide (3–7 steps max).",
+            "Use 'recommendations' for concise, per-risk human-readable advice.",
             "Do not include any markdown, only JSON.",
         ],
     }
@@ -133,6 +172,10 @@ def run_ai_reasoning(terraform_struct: dict[str, Any], graph_summary: dict[str, 
 
         parsed = json.loads(content)
         if isinstance(parsed, dict):
+            parsed.setdefault("summary", {})
+            parsed.setdefault("changes", [])
+            parsed.setdefault("migration_guide", [])
+            parsed.setdefault("recommendations", [])
             parsed.setdefault("architecture", [])
             parsed.setdefault("attack_paths", [])
             parsed.setdefault("blast_radius", [])

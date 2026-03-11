@@ -1,0 +1,10 @@
+uploads/scans/
+uploads/results/
+backend/.venv/
+backend/__pycache__/
+backend/**/*.pyc
+frontend/.next/
+frontend/node_modules/
+.DS_Store
+*.log
+*.sqlite
